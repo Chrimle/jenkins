@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import jenkins.plugins.DetachedPluginsUtil;
 import net.sf.json.JSONArray;
 
@@ -58,11 +60,12 @@ public class PluginLabelUtil {
      * @return unique canonical labels
      */
     public static String[] canonicalLabels(JSONArray labels) {
-        HashSet<String> uniqueLabels = new HashSet<>();
-        for (Object label : labels) {
-            uniqueLabels.add(Util.intern(canonicalLabel(label.toString())));
-        }
-        return uniqueLabels.toArray(EMPTY_STRING_ARRAY);
+        return Stream.of(labels)
+                .map(JSONArray::toString)
+                .map(PluginLabelUtil::canonicalLabel)
+                .map(Util::intern)
+                .collect(Collectors.toCollection(HashSet::new))
+                .toArray(EMPTY_STRING_ARRAY);
     }
 
 }
