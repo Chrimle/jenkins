@@ -127,13 +127,9 @@ public class DetachedPluginsUtil {
      * point in the past, otherwise {@code false}.
      */
     public static boolean isDetachedPlugin(@NonNull String pluginId) {
-        for (DetachedPlugin detachedPlugin : getDetachedPlugins()) {
-            if (detachedPlugin.getShortName().equals(pluginId)) {
-                return true;
-            }
-        }
-
-        return false;
+        return getDetachedPlugins().stream()
+                .map(DetachedPlugin::getShortName)
+                .anyMatch(pluginId::equals);
     }
 
     public static Stream<String> configLines(InputStream is) throws IOException {
