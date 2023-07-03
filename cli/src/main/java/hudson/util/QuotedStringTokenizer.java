@@ -37,6 +37,7 @@
 package hudson.util;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
@@ -56,7 +57,16 @@ import java.util.StringTokenizer;
 public class QuotedStringTokenizer
     extends StringTokenizer
 {
-    private static final String __delim = " \t\n\r";
+    private static final char DOUBLE_QUOTE = '\"';
+    private static final char SINGLE_QUOTE = '\'';
+    private static final char SLASH = '\\';
+    private static final char TAB = '\t';
+    private static final char RETURN = '\r';
+    private static final char NEWLINE = '\n';
+    private static final char SPACE = ' ';
+    private static final char FORMFEED = '\f';
+    private static final char BACKSPACE = '\b';
+    private static final String __delim = String.valueOf(SPACE + TAB + NEWLINE + RETURN);
     private String _string;
     private String _delim = __delim;
     private boolean _returnQuotes = false;
@@ -101,8 +111,8 @@ public class QuotedStringTokenizer
         _returnDelimiters = returnDelimiters;
         _returnQuotes = returnQuotes;
 
-        if (_delim.indexOf('\'') >= 0 ||
-            _delim.indexOf('"') >= 0)
+        if (_delim.indexOf(SINGLE_QUOTE) >= 0 ||
+            _delim.indexOf(DOUBLE_QUOTE) >= 0)
             throw new Error("Can't use quotes as delimiters: " + _delim);
 
         _token = new StringBuilder(_string.length() > 1024 ? 512 : _string.length() / 2);
@@ -147,7 +157,7 @@ public class QuotedStringTokenizer
 
         _lastStart = _i;
 
-        int state = 0;
+        State state = State.START;
         boolean escape = false;
         while (_i < _string.length())
         {
@@ -155,7 +165,7 @@ public class QuotedStringTokenizer
 
             switch (state)
             {
-              case 0: // Start
+              case START:
                   if (_delim.indexOf(c) >= 0)
                   {
                       if (_returnDelimiters)
@@ -164,33 +174,33 @@ public class QuotedStringTokenizer
                           return _hasToken = true;
                       }
                   }
-                  else if (c == '\'' && _single)
+                  else if (c == SINGLE_QUOTE && _single)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 2;
+                      state = State.SINGLE_QUOTE;
                   }
-                  else if (c == '\"' && _double)
+                  else if (c == DOUBLE_QUOTE && _double)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 3;
+                      state = State.DOUBLE_QUOTE;
                   }
                   else
                   {
                       _token.append(c);
                       _hasToken = true;
-                      state = 1;
+                      state = State.TOKEN;
                   }
-                  continue;
+                  break;
 
-              case 1: // Token
+              case TOKEN:
                   _hasToken = true;
                   if (escape)
                   {
                       escape = false;
-                      if (ESCAPABLE_CHARS.indexOf(c) < 0)
-                          _token.append('\\');
+                      if (!isCharacterEscapable(c))
+                          _token.append(SLASH);
                       _token.append(c);
                   }
                   else if (_delim.indexOf(c) >= 0)
@@ -199,43 +209,43 @@ public class QuotedStringTokenizer
                           _i--;
                       return _hasToken;
                   }
-                  else if (c == '\'' && _single)
+                  else if (c == SINGLE_QUOTE && _single)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 2;
+                      state = State.SINGLE_QUOTE;
                   }
-                  else if (c == '\"' && _double)
+                  else if (c == DOUBLE_QUOTE && _double)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 3;
+                      state = State.DOUBLE_QUOTE;
                   }
-                  else if (c == '\\')
+                  else if (c == SLASH)
                   {
                       escape = true;
                   }
                   else
                       _token.append(c);
-                  continue;
+                  break;
 
 
-              case 2: // Single Quote
+              case SINGLE_QUOTE:
                   _hasToken = true;
                   if (escape)
                   {
                       escape = false;
-                      if (ESCAPABLE_CHARS.indexOf(c) < 0)
-                          _token.append('\\');
+                      if (!isCharacterEscapable(c))
+                          _token.append(SLASH);
                       _token.append(c);
                   }
-                  else if (c == '\'')
+                  else if (c == SINGLE_QUOTE)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 1;
+                      state = State.TOKEN;
                   }
-                  else if (c == '\\')
+                  else if (c == SLASH)
                   {
                       if (_returnQuotes)
                           _token.append(c);
@@ -243,25 +253,25 @@ public class QuotedStringTokenizer
                   }
                   else
                       _token.append(c);
-                  continue;
+                  break;
 
 
-              case 3: // Double Quote
+              case DOUBLE_QUOTE:
                   _hasToken = true;
                   if (escape)
                   {
                       escape = false;
-                      if (ESCAPABLE_CHARS.indexOf(c) < 0)
-                          _token.append('\\');
+                      if (!isCharacterEscapable(c))
+                          _token.append(SLASH);
                       _token.append(c);
                   }
-                  else if (c == '\"')
+                  else if (c == DOUBLE_QUOTE)
                   {
                       if (_returnQuotes)
                           _token.append(c);
-                      state = 1;
+                      state = State.TOKEN;
                   }
-                  else if (c == '\\')
+                  else if (c == SLASH)
                   {
                       if (_returnQuotes)
                           _token.append(c);
@@ -269,7 +279,7 @@ public class QuotedStringTokenizer
                   }
                   else
                       _token.append(c);
-                  continue;
+                  break;
 
               default:
                   break;
@@ -277,6 +287,13 @@ public class QuotedStringTokenizer
         }
 
         return _hasToken;
+    }
+
+    private enum State {
+        START,
+        TOKEN,
+        SINGLE_QUOTE,
+        DOUBLE_QUOTE
     }
 
     /* ------------------------------------------------------------ */
@@ -348,7 +365,7 @@ public class QuotedStringTokenizer
         for (int i = 0; i < s.length(); i++)
         {
             char c = s.charAt(i);
-            if (c == '\\' || c == '"' || c == '\'' || Character.isWhitespace(c) || delim.indexOf(c) >= 0)
+            if (c == SLASH || c == DOUBLE_QUOTE || c == SINGLE_QUOTE || Character.isWhitespace(c) || delim.indexOf(c) >= 0)
             {
                 StringBuffer b = new StringBuffer(s.length() + 8);
                 quote(b, s);
@@ -391,31 +408,31 @@ public class QuotedStringTokenizer
     {
         synchronized (buf)
         {
-            buf.append('"');
+            buf.append(DOUBLE_QUOTE);
             for (int i = 0; i < s.length(); i++)
             {
                 char c = s.charAt(i);
                 switch (c)
                 {
-                    case '"':
+                    case DOUBLE_QUOTE:
                         buf.append("\\\"");
                         continue;
-                    case '\\':
+                    case SLASH:
                         buf.append("\\\\");
                         continue;
-                    case '\n':
+                    case NEWLINE:
                         buf.append("\\n");
                         continue;
-                    case '\r':
+                    case RETURN:
                         buf.append("\\r");
                         continue;
-                    case '\t':
+                    case TAB:
                         buf.append("\\t");
                         continue;
-                    case '\f':
+                    case FORMFEED:
                         buf.append("\\f");
                         continue;
-                    case '\b':
+                    case BACKSPACE:
                         buf.append("\\b");
                         continue;
 
@@ -423,7 +440,7 @@ public class QuotedStringTokenizer
                         buf.append(c);
                 }
             }
-            buf.append('"');
+            buf.append(DOUBLE_QUOTE);
         }
     }
 
@@ -441,7 +458,7 @@ public class QuotedStringTokenizer
 
         char first = s.charAt(0);
         char last = s.charAt(s.length() - 1);
-        if (first != last || (first != '"' && first != '\''))
+        if (first != last || (first != DOUBLE_QUOTE && first != SINGLE_QUOTE))
             return s;
 
         StringBuilder b = new StringBuilder(s.length() - 2);
@@ -456,19 +473,19 @@ public class QuotedStringTokenizer
                 switch (c)
                 {
                     case 'n':
-                        b.append('\n');
+                        b.append(NEWLINE);
                         break;
                     case 'r':
-                        b.append('\r');
+                        b.append(RETURN);
                         break;
                     case 't':
-                        b.append('\t');
+                        b.append(TAB);
                         break;
                     case 'f':
-                        b.append('\f');
+                        b.append(FORMFEED);
                         break;
                     case 'b':
-                        b.append('\b');
+                        b.append(BACKSPACE);
                         break;
                     case 'u':
                         b.append((char) (
@@ -483,7 +500,7 @@ public class QuotedStringTokenizer
                         b.append(c);
                 }
             }
-            else if (c == '\\')
+            else if (c == SLASH)
             {
                 escape = true;
             }
@@ -542,6 +559,10 @@ public class QuotedStringTokenizer
         return 0;
     }
 
+    private static boolean isCharacterEscapable(char c){
+        return ESCAPABLE_CHARS.contains(c);
+    }
+
     /**
      * Characters that can be escaped with \.
      *
@@ -549,5 +570,5 @@ public class QuotedStringTokenizer
      * This is important to keep Hudson behave on Windows, which uses '\' as
      * the directory separator.
      */
-    private static final String ESCAPABLE_CHARS = "\\\"' ";
+    private static final Collection<Character> ESCAPABLE_CHARS = List.of(SLASH, SINGLE_QUOTE, DOUBLE_QUOTE, SPACE);
 }
