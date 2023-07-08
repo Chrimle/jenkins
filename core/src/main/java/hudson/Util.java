@@ -84,20 +84,7 @@ import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.MissingResourceException;
-import java.util.Properties;
-import java.util.ResourceBundle;
-import java.util.Set;
-import java.util.SimpleTimeZone;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -106,6 +93,8 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import jenkins.util.MemoryReductionUtil;
@@ -144,12 +133,10 @@ public class Util {
      */
     @NonNull
     public static <T> List<T> filter(@NonNull Iterable<?> base, @NonNull Class<T> type) {
-        List<T> r = new ArrayList<>();
-        for (Object i : base) {
-            if (type.isInstance(i))
-                r.add(type.cast(i));
-        }
-        return r;
+        return StreamSupport.stream(base.spliterator(),false)
+                .filter(type::isInstance)
+                .map(type::cast)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -598,8 +585,7 @@ public class Util {
 
     @NonNull
     public static String removeTrailingSlash(@NonNull String s) {
-        if (s.endsWith("/")) return s.substring(0, s.length() - 1);
-        else                return s;
+        return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
 
 
@@ -831,12 +817,10 @@ public class Util {
      */
     @NonNull
     public static <T> List<T> createSubList(@NonNull Collection<?> source, @NonNull Class<T> type) {
-        List<T> r = new ArrayList<>();
-        for (Object item : source) {
-            if (type.isInstance(item))
-                r.add(type.cast(item));
-        }
-        return r;
+        return source.stream()
+                .filter(type::isInstance)
+                .map(type::cast)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -1227,13 +1211,9 @@ public class Util {
      */
     @NonNull
     public static <T> List<T> join(@NonNull Collection<? extends T>... items) {
-        int size = 0;
-        for (Collection<? extends T> item : items)
-            size += item.size();
-        List<T> r = new ArrayList<>(size);
-        for (Collection<? extends T> item : items)
-            r.addAll(item);
-        return r;
+        return Arrays.stream(items)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
     }
 
     /**

@@ -197,10 +197,7 @@ public class SecretRewriter {
     }
 
     private static boolean isBase64(String s) {
-        for (int i = 0; i < s.length(); i++)
-            if (!isBase64(s.charAt(i)))
-                return false;
-        return true;
+        return s.chars().allMatch(c -> isBase64((char) c));
     }
 
     private static final boolean[] IS_BASE64 = new boolean[128];

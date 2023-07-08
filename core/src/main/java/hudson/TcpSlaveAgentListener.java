@@ -232,61 +232,65 @@ public final class TcpSlaveAgentListener extends Thread {
                         "Content-Type: text/plain;charset=UTF-8\r\n" +
                         "\r\n" +
                         "Not Found\r\n";
-        private final Socket s;
+        private final Socket socket;
         /**
          * Unique number to identify this connection. Used in the log.
          */
         private final int id;
 
-        ConnectionHandler(Socket s) {
-            this.s = s;
+        ConnectionHandler(Socket socket) {
+            this.socket = socket;
             synchronized (getClass()) {
                 id = iotaGen++;
             }
-            setName("TCP agent connection handler #" + id + " with " + s.getRemoteSocketAddress());
+            setName("TCP agent connection handler #" + id + " with " + socket.getRemoteSocketAddress());
         }
 
         @Override
         public void run() {
-            String connectionInfo = "#" + id + " from " + s.getRemoteSocketAddress();
+            String connectionInfo = "#" + id + " from " + socket.getRemoteSocketAddress();
             try {
                 LOGGER.log(Level.FINE, () -> "Accepted connection " + connectionInfo);
 
-                DataInputStream in = new DataInputStream(s.getInputStream());
+                DataInputStream in = new DataInputStream(socket.getInputStream());
 
                 // peek the first few bytes to determine what to do with this client
                 byte[] head = new byte[10];
                 in.readFully(head);
 
                 String header = new String(head, StandardCharsets.US_ASCII);
-                if (header.startsWith("GET ")) {
+                if (isHttpGetRequest(header)) {
                     // this looks like an HTTP client
-                    respondHello(header, s);
+                    respondHello(header, socket);
                     return;
                 }
 
                 // otherwise assume this is AgentProtocol and start from the beginning
                 String s = new DataInputStream(new SequenceInputStream(new ByteArrayInputStream(head), in)).readUTF();
 
-                if (s.startsWith("Protocol:")) {
-                    String protocol = s.substring(9);
-                    AgentProtocol p = AgentProtocol.of(protocol);
-                    if (p != null) {
-                        if (Jenkins.get().getAgentProtocols().contains(protocol)) {
-                            LOGGER.log(p instanceof PingAgentProtocol ? Level.FINE : Level.INFO, () -> "Accepted " + protocol + " connection " + connectionInfo);
-                            p.handle(this.s);
-                        } else {
-                            error("Disabled protocol:" + s, this.s);
-                        }
-                    } else
-                        error("Unknown protocol:", this.s);
-                } else {
-                    error("Unrecognized protocol: " + s, this.s);
+                if (!isAgentProtocol(s)) {
+                    error("Unrecognized protocol: " + s, this.socket);
+                    return;
                 }
+
+                AgentProtocol agentProtocol = AgentProtocol.of(s.substring(9));
+                if (agentProtocol == null) {
+                    error("Unknown protocol:", this.socket);
+                    return;
+                }
+
+                if (!isEnabledProtocol(agentProtocol)) {
+                    error("Disabled protocol:" + agentProtocol.getName(), this.socket);
+                    return;
+                }
+
+                LOGGER.log(agentProtocol instanceof PingAgentProtocol ? Level.FINE : Level.INFO, () -> "Accepted " + agentProtocol.getName() + " connection " + connectionInfo);
+                agentProtocol.handle(this.socket);
+
             } catch (InterruptedException e) {
                 LOGGER.log(Level.WARNING, e, () -> "Connection " + connectionInfo + " aborted");
                 try {
-                    s.close();
+                    socket.close();
                 } catch (IOException ex) {
                     // try to clean up the socket
                 }
@@ -297,11 +301,23 @@ public final class TcpSlaveAgentListener extends Thread {
                     LOGGER.log(Level.WARNING, e, () -> "Connection " + connectionInfo + " failed");
                 }
                 try {
-                    s.close();
+                    socket.close();
                 } catch (IOException ex) {
                     // try to clean up the socket
                 }
             }
+        }
+
+        private boolean isEnabledProtocol(AgentProtocol p) {
+            return Jenkins.get().getAgentProtocols().contains(p.getName());
+        }
+
+        private boolean isAgentProtocol(String s) {
+            return s.startsWith("Protocol:");
+        }
+
+        private boolean isHttpGetRequest(String header) {
+            return header.startsWith("GET ");
         }
 
         /**

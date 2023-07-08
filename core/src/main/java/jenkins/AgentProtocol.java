@@ -1,12 +1,15 @@
 package jenkins;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.ExtensionPoint;
 import hudson.TcpSlaveAgentListener;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import jenkins.model.Jenkins;
 
@@ -115,4 +118,34 @@ public abstract class AgentProtocol implements ExtensionPoint {
         }
         return null;
     }
+
+    
+    public static Optional<AgentProtocol> ofOptional(@NonNull String protocolName) {
+        for (AgentProtocol p : all()) {
+            if (protocolName.equals(p.getName()))
+                return Optional.of(p);
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<AgentProtocol> ofOptional(String protocolName) {
+        return all().stream()
+                .filter(AgentProtocol::hasNonNullName)
+                .filter(agentProtocol -> isEquals(protocolName, agentProtocol))
+                .findFirst();
+    }
+
+    private static boolean isEquals(String protocolName, AgentProtocol agentProtocol) {
+        return agentProtocol.getName().equals(protocolName);
+    }
+
+    public static Optional<String> getName(AgentProtocol agentProtocol) {
+        return Optional.ofNullable(agentProtocol.getName());
+    }
+
+    public static boolean hasNonNullName(AgentProtocol agentProtocol){
+        return agentProtocol.getName() != null;
+    }
+
+
 }
